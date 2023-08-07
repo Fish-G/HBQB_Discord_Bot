@@ -1,6 +1,7 @@
 package org.example;
 
 import commands.CommandManager;
+import game.Bowl;
 import io.github.cdimascio.dotenv.Dotenv;
 import listeners.EventListener;
 import net.dv8tion.jda.api.JDA;
@@ -18,7 +19,7 @@ import java.util.List;
 public class HBQB {
     private final Dotenv config;
     private final ShardManager shardManager;
-    private final List<String> gameList = new ArrayList<>();
+    private static final List<Bowl> gameList = new ArrayList<>();
 
     public static void main(String[] args) {
         try {
@@ -26,6 +27,10 @@ public class HBQB {
         } catch (LoginException e) {
             System.out.println("error: invalid token");
         }
+    }
+
+    public static List<Bowl> getGameList() {
+        return gameList;
     }
 
     public ShardManager getShardManager() {
