@@ -23,7 +23,7 @@ public class EventListener extends ListenerAdapter {
         // check if message is sent in a channel where a game is in session
         for (Bowl b : games) {
             if (b.getName().equals(event.getChannel())) {
-                b.checkAnswer(event.getMessage().getContentRaw());
+                b.checkAnswer(event.getMessage().getContentRaw(), event.getAuthor());
             }
         }
     }

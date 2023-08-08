@@ -1,35 +1,43 @@
 package game;
 
+import com.github.wslf.levenshteindistance.LevenshteinCalculator;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
-
+import org.example.Question;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
 import java.util.*;
 import java.util.concurrent.*;
 
+
+import static org.springframework.data.mongodb.core.query.Criteria.where;
+import static org.springframework.data.mongodb.core.query.Query.query;
+
 public class Bowl {
 
+    MongoTemplate mongo;
     private final MessageChannel name;
     private final String team1Name;
     private final String team2Name;
     private int team1Score;
     private int team2Score;
 
-    private final List<String> team1Members = new ArrayList<>();
-    private final List<String> team2members = new ArrayList<>();
-
-    ScheduledExecutorService questionMessager = Executors.newScheduledThreadPool(1);
+    private final HashMap<User, Player> team1Members = new HashMap<>();
+    private final HashMap<User, Player> team2members = new HashMap<>();
 
     // current question
     Queue<String> question = new LinkedList<>();
 
+    private boolean power;
     //current possible answers
     List<String> answers = new ArrayList<>();
 
 
-    public Bowl(MessageChannel name, String team1Name, String team2Name) {
+    public Bowl(MongoTemplate mongo, MessageChannel name, String team1Name, String team2Name) {
+        this.mongo = mongo;
         this.name = name;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
-
     }
 
     public MessageChannel getName() {
@@ -52,56 +60,94 @@ public class Bowl {
         return team2Score;
     }
 
-    public void addTeam1(String playerName) {
-        team1Members.add(playerName);
+    public void addTeam1(User player) {
+        team1Members.put(player, new Player(player));
     }
 
-    public void addTeam2(String playerName) {
-        team2members.add((playerName));
+    public void addTeam2(User player) {
+        team2members.put(player, new Player(player));
     }
 
     public void startMatch(MessageChannel channel) {
         startQuestion(channel);
     }
 
-    public void checkAnswer(String buzz) {
+
+    private boolean acceptable(String buzz) {
+        LevenshteinCalculator levenshteinCalculator = new LevenshteinCalculator();
+
+        return false;
+    }
+
+    public void checkAnswer(String buzz, User player) {
         if (answers.contains(buzz)) {
             name.sendMessage("correct").queue();
             sf.cancel(true);
             question.clear();
 
+            //add score to player
+            if (team1Members.containsKey(player)) {
+                team1Members.get(player).addScore(10);
+                team1Score += 10;
+            } else {
+                team2members.get(player).addScore(10);
+                team2Score += 10;
+            }
 
         } else name.sendMessage("Incorrect").queue();
+
+        if (team1Members.containsKey(player)) {
+            team1Members.get(player).addScore(-5);
+        } else team2members.get(player).addScore(-5);
 
     }
 
     ScheduledFuture<?> sf;
+
     private void printClue(MessageChannel channel) {
         if (question.isEmpty()) return;
 
         sf = channel.sendMessage(question.remove()).queueAfter(5, TimeUnit.SECONDS, (response) -> printClue(channel));
     }
 
+    private void loadQuestion() {
+        //load a question into the currentQuestion linked list, optional conditions like category and difficulty
+        Query query = query(where("tags").is("science").and("color").is(""));
+        query.fields().include("id");
+        List<Question> idList = mongo.find(query, Question.class);
+
+
+        Question q = mongo.findById(idList.get((int)(Math.random() * idList.size())), Question.class);
+
+        //perform question formatting into the queue
+        question.addAll(List.of(q.getQuestion().split("(?<=\\. )|(?<=\\Q.”\\E)|(?<=\\(\\*\\))")));
+
+        //load answers
+        answers = q.getAnswers();
+
+        //how to add to the database
+        mongo.save(new Question());
+
+    }
+
+
     private void startQuestion(MessageChannel channel) {
         //queue up next question and answer
         //load question from database, split into sentences
-        question.addAll(List.of("In a novel by an author with this first name, the magician Signor Brunoni and the scandalous Captain Brown disrupt a society of unwed, elderly “Amazons.” In a work by another author with this first name, the title character ends up marrying her blinded cousin Romney in Florence. Margaret Hale intervenes in strikes at a cotton mill in a work by an author with this first name; that author of Cranford and North and South had the last name (*) Gaskell. Another author with this first name wrote Aurora Leigh and a collection of works imploring “Yes, call me by my pet name” and vowing “I shall but love thee better after death.” For 10 points, give this first name of an author who wrote “How do I love thee? Let me count the ways” in Sonnets from the Portuguese.".split("\\.")));
-
         answers.add("bingus");
 
         printClue(channel);
     }
 
     public void endMatch() {
-        questionMessager.shutdownNow();
     }
 
     public String displayTeams() {
         StringBuilder b = new StringBuilder();
         b.append(team1Name).append("\n");
-        team1Members.forEach(i -> b.append(i).append(", "));
+        team1Members.forEach((i, j) -> b.append(i.getName()).append(", "));
         b.append(team2Name).append("\n");
-        team2members.forEach(i -> b.append(i).append(", "));
+        team2members.forEach((i, j) -> b.append(i.getName()).append(", "));
         return b.toString();
     }
 }

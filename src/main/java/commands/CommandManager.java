@@ -10,12 +10,18 @@ import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import org.example.HBQB;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class CommandManager extends ListenerAdapter {
     private final List<Bowl> games = HBQB.getGameList();
+
+    MongoTemplate mongo;
+    public CommandManager(MongoTemplate mongo) {
+        this.mongo = mongo;
+    }
 
     @Override
     public void onGuildJoin(GuildJoinEvent event) {//runs every time a bot joins the sever
@@ -87,10 +93,10 @@ public class CommandManager extends ListenerAdapter {
             if (b.getName().equals(event.getChannel())) {
                 //game found
                 if (event.getOption("teamname").getAsString().equals(b.getTeam1Name())) {
-                    b.addTeam1(event.getUser().getName());
+                    b.addTeam1(event.getUser());
                     event.reply("Successfully joined " + b.getTeam1Name()).queue();
                 } else if (event.getOption("teamname").getAsString().equals(b.getTeam2Name())) {
-                    b.addTeam2(event.getUser().getName());
+                    b.addTeam2(event.getUser());
                     event.reply("Successfully joined " + b.getTeam2Name()).queue();
                 } else {
                     event.reply("Failed to find team name, check spelling.\n team names are: " + b.getTeam1Name() + ", " + b.getTeam2Name()).queue();
@@ -114,7 +120,7 @@ public class CommandManager extends ListenerAdapter {
             }
         }
 
-        games.add(new Bowl(event.getChannel(),event.getOption("team1").getAsString(),event.getOption("team2").getAsString()));
+        games.add(new Bowl(mongo, event.getChannel(),event.getOption("team1").getAsString(),event.getOption("team2").getAsString()));
         event.reply("game has been created -> **" + event.getOption("team1").getAsString() + "** vs **" + event.getOption("team2").getAsString() + "**").queue();
     }
 
