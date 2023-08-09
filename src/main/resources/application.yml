@@ -1,0 +1,4 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb+srv://fishguy2468:Yuanzhao1@cluster0.kcycdke.mongodb.net/bowl?retryWrites=true&w=majority

@@ -1,5 +1,6 @@
 package org.example;
 
+import game.QuestionTags;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,8 +15,20 @@ import java.util.List;
 public class Question {
     String id = ObjectId.get().toHexString();
     String question;
-    List<String> answers = new ArrayList<>();
-    List<String> tags = new ArrayList<>();;
+    String displayAnswers;
+    List<String> answers;
+    List<QuestionTags> tags;
+
+    public Question(String question, List<String> answers,String displayAnswers, List<QuestionTags> tags) {
+        this.question = question;
+        this.answers = answers;
+        this.tags = tags;
+        this.displayAnswers = displayAnswers;
+    }
+
+    public String getDisplayAnswers() {
+        return displayAnswers;
+    }
 
     public String getId() {
         return id;
@@ -29,7 +42,7 @@ public class Question {
         return answers;
     }
 
-    public List<String> getTags() {
+    public List<QuestionTags> getTags() {
         return tags;
     }
 

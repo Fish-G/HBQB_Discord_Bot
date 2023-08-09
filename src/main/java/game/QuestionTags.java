@@ -1,0 +1,5 @@
+package game;
+
+public enum QuestionTags {
+    HS, MS, COLLEGE, SCIENCE, PHILOSOPHY, LITERATURE, MATH, TRASH, HISTORY, ART, GEOGRAPHY, MISCELLANEOUS
+}

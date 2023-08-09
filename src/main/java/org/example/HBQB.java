@@ -2,6 +2,7 @@ package org.example;
 
 import commands.CommandManager;
 import game.Bowl;
+import game.ParsePdfToDB;
 import io.github.cdimascio.dotenv.Dotenv;
 import listeners.EventListener;
 import net.dv8tion.jda.api.JDA;
@@ -49,6 +50,8 @@ public class HBQB {
 
         //register listeners
         shardManager.addEventListener(new EventListener(), new CommandManager(mongo));
+
+        ParsePdfToDB parsePdfToDB = new ParsePdfToDB(mongo);
     }
 
 }

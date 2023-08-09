@@ -14,7 +14,6 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 import static org.springframework.data.mongodb.core.query.Query.query;
 
 public class Bowl {
-
     MongoTemplate mongo;
     private final MessageChannel name;
     private final String team1Name;
@@ -31,7 +30,7 @@ public class Bowl {
     private boolean power;
     //current possible answers
     List<String> answers = new ArrayList<>();
-
+    String answerDisplay;
 
     public Bowl(MongoTemplate mongo, MessageChannel name, String team1Name, String team2Name) {
         this.mongo = mongo;
@@ -75,23 +74,32 @@ public class Bowl {
 
     private boolean acceptable(String buzz) {
         LevenshteinCalculator levenshteinCalculator = new LevenshteinCalculator();
-
+        for (String a : answers) {
+            if (levenshteinCalculator.getDifference("buzz",a) < 3) {
+                return true;
+            }
+        }
         return false;
     }
 
     public void checkAnswer(String buzz, User player) {
         if (answers.contains(buzz)) {
             name.sendMessage("correct").queue();
+            name.sendMessage(answerDisplay).queue();
             sf.cancel(true);
             question.clear();
 
+            //calculate score to give
+            int score = 10;
+            if (power) score +=5;
+
             //add score to player
             if (team1Members.containsKey(player)) {
-                team1Members.get(player).addScore(10);
-                team1Score += 10;
+                team1Members.get(player).addScore(score);
+                team1Score += score;
             } else {
                 team2members.get(player).addScore(10);
-                team2Score += 10;
+                team2Score += score;
             }
 
         } else name.sendMessage("Incorrect").queue();
@@ -99,23 +107,31 @@ public class Bowl {
         if (team1Members.containsKey(player)) {
             team1Members.get(player).addScore(-5);
         } else team2members.get(player).addScore(-5);
-
     }
 
     ScheduledFuture<?> sf;
 
-    private void printClue(MessageChannel channel) {
+    private void printClue(MessageChannel channel, boolean triggerPower) {
         if (question.isEmpty()) return;
 
-        sf = channel.sendMessage(question.remove()).queueAfter(5, TimeUnit.SECONDS, (response) -> printClue(channel));
+        //we want to deactivate power after the (*), so we need a mechanism to tell the next callback to deactivate power
+        if (triggerPower) power = false;
+        if (question.peek().endsWith("(*)")) triggerPower = true;
+
+        boolean finalTriggerPower = triggerPower;
+        sf = channel.sendMessage(question.remove()).queueAfter(5, TimeUnit.SECONDS, (response) -> printClue(channel, finalTriggerPower));
     }
 
-    private void loadQuestion() {
+    private void loadQuestion(List<QuestionTags> tags) {
         //load a question into the currentQuestion linked list, optional conditions like category and difficulty
-        Query query = query(where("tags").is("science").and("color").is(""));
+        Query query = query(where("tags").all(tags));
         query.fields().include("id");
         List<Question> idList = mongo.find(query, Question.class);
 
+        if (idList.isEmpty()) {
+            name.sendMessage("no question found").queue();
+            return;
+        }
 
         Question q = mongo.findById(idList.get((int)(Math.random() * idList.size())), Question.class);
 
@@ -123,20 +139,21 @@ public class Bowl {
         question.addAll(List.of(q.getQuestion().split("(?<=\\. )|(?<=\\Q.”\\E)|(?<=\\(\\*\\))")));
 
         //load answers
+        answerDisplay = q.getDisplayAnswers();
         answers = q.getAnswers();
 
         //how to add to the database
-        mongo.save(new Question());
-
     }
 
 
     private void startQuestion(MessageChannel channel) {
         //queue up next question and answer
         //load question from database, split into sentences
-        answers.add("bingus");
+        power = true;
 
-        printClue(channel);
+        List<QuestionTags> tags = new ArrayList<>();
+        loadQuestion(tags);
+        printClue(channel,false);
     }
 
     public void endMatch() {
