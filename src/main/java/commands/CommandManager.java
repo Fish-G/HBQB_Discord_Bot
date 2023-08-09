@@ -1,6 +1,7 @@
 package commands;
 
 import game.Bowl;
+import game.QuestionTags;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -19,6 +20,7 @@ public class CommandManager extends ListenerAdapter {
     private final List<Bowl> games = HBQB.getGameList();
 
     MongoTemplate mongo;
+
     public CommandManager(MongoTemplate mongo) {
         this.mongo = mongo;
     }
@@ -33,25 +35,35 @@ public class CommandManager extends ListenerAdapter {
         List<CommandData> commandData = new ArrayList<>();
 
 
-        commandData.add(Commands.slash("makegame","Start a new game of Quiz bowl")
-                .addOption(OptionType.STRING,"team1","Name of team 1", true)
-                .addOption(OptionType.STRING,"team2", "Name of team 2", true)
-                .addOptions(
-                        new OptionData(OptionType.STRING,"difficulty", "Difficulty (default hs)")
-                                .addChoice("HS","hs")
-                                .addChoice("MS","ms")
-                                .addChoice("Collegiate","collegiate")
-                )
-
+        commandData.add(Commands.slash("makegame", "Start a new game of Quiz bowl")
+                .addOption(OptionType.STRING, "team1", "Name of team 1", true)
+                .addOption(OptionType.STRING, "team2", "Name of team 2", true)
+                .addOption(OptionType.BOOLEAN, "hs", "High School")
+                .addOption(OptionType.BOOLEAN, "ms", "Middle School")
+                .addOption(OptionType.BOOLEAN, "college", "Collegiate")
+                .addOption(OptionType.BOOLEAN, "science", "Science")
+                .addOption(OptionType.BOOLEAN, "philosophy", "Philosophy")
+                .addOption(OptionType.BOOLEAN, "literature", "Literature")
+                .addOption(OptionType.BOOLEAN, "math", "Math")
+                .addOption(OptionType.BOOLEAN, "trash", "Trash")
+                .addOption(OptionType.BOOLEAN, "art", "Art")
+                .addOption(OptionType.BOOLEAN, "geography", "Geography")
+                .addOption(OptionType.BOOLEAN, "miscellaneous", "Miscellaneous")
+                .addOption(OptionType.BOOLEAN, "music", "Music")
+                .addOption(OptionType.BOOLEAN, "history", "History")
         );
 
         commandData.add(Commands.slash("jointeam", "Join a team if a game is about to start")
-                .addOption(OptionType.STRING, "teamname", "name of team you want to join",true)
+                .addOption(OptionType.STRING, "teamname", "name of team you want to join", true)
         );
 
         commandData.add(Commands.slash("startgame", "Start the game (locks teams)"));
 
         commandData.add(Commands.slash("scorecheck", "check current score"));
+
+        commandData.add(Commands.slash("stopgame", "stop current game in channel"));
+
+        commandData.add(Commands.slash("leaveteam", "leave your current team"));
 
         event.getGuild().updateCommands().addCommands(commandData).queue();
     }
@@ -65,7 +77,31 @@ public class CommandManager extends ListenerAdapter {
             case "jointeam" -> joinTeam(event);
             case "startgame" -> startGame(event);
             case "scorecheck" -> displayScore(event);
+            case "stopgame" -> stopGame(event);
+            case "leaveteam" -> leaveTeam(event);
         }
+    }
+
+    private void leaveTeam(SlashCommandInteractionEvent event) {
+        for (Bowl b : games) {
+            if (b.getName().equals(event.getChannel())) {
+                b.getTeam1Members().remove(event.getUser());
+                b.getTeam2members().remove(event.getUser());
+            }
+        }
+        event.reply("you have left your team").queue();
+    }
+
+    private void stopGame(SlashCommandInteractionEvent event) {
+        for (Bowl b : games) {
+            if (b.getName().equals(event.getChannel())) {
+                b.endMatch();
+                games.remove(b);
+                event.reply("Game has been stopped").queue();
+                return;
+            }
+        }
+        event.reply("No game is currently running in this channel").queue();
     }
 
     private void displayScore(SlashCommandInteractionEvent event) {
@@ -119,8 +155,22 @@ public class CommandManager extends ListenerAdapter {
                 return;
             }
         }
+        List<QuestionTags> tags = new ArrayList<>();
+        if (event.getOption("hs") != null && event.getOption("hs").getAsBoolean()) tags.add(QuestionTags.HS);
+        if (event.getOption("ms") != null && event.getOption("ms").getAsBoolean()) tags.add(QuestionTags.MS);
+        if (event.getOption("college") != null && event.getOption("college").getAsBoolean()) tags.add(QuestionTags.COLLEGE);
+        if (event.getOption("science") != null && event.getOption("science").getAsBoolean()) tags.add(QuestionTags.SCIENCE);
+        if (event.getOption("philosophy") != null && event.getOption("philosophy").getAsBoolean()) tags.add(QuestionTags.PHILOSOPHY);
+        if (event.getOption("literature") != null && event.getOption("literature").getAsBoolean()) tags.add(QuestionTags.LITERATURE);
+        if (event.getOption("math") != null && event.getOption("math").getAsBoolean()) tags.add(QuestionTags.MATH);
+        if (event.getOption("trash") != null && event.getOption("trash").getAsBoolean()) tags.add(QuestionTags.TRASH);
+        if (event.getOption("history") != null && event.getOption("history").getAsBoolean()) tags.add(QuestionTags.HISTORY);
+        if (event.getOption("art") != null && event.getOption("art").getAsBoolean()) tags.add(QuestionTags.ART);
+        if (event.getOption("geography") != null && event.getOption("geography").getAsBoolean()) tags.add(QuestionTags.GEOGRAPHY);
+        if (event.getOption("miscellaneous") != null && event.getOption("miscellaneous").getAsBoolean()) tags.add(QuestionTags.MISCELLANEOUS);
+        if (event.getOption("music") != null && event.getOption("music").getAsBoolean()) tags.add(QuestionTags.MUSIC);
 
-        games.add(new Bowl(mongo, event.getChannel(),event.getOption("team1").getAsString(),event.getOption("team2").getAsString()));
+        games.add(new Bowl(mongo, event.getChannel(), event.getOption("team1").getAsString(), event.getOption("team2").getAsString(), tags));
         event.reply("game has been created -> **" + event.getOption("team1").getAsString() + "** vs **" + event.getOption("team2").getAsString() + "**").queue();
     }
 

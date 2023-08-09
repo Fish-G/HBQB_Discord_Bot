@@ -4,8 +4,10 @@ import com.github.wslf.levenshteindistance.LevenshteinCalculator;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import org.example.Question;
+import org.springframework.core.metrics.StartupStep;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -32,11 +34,13 @@ public class Bowl {
     List<String> answers = new ArrayList<>();
     String answerDisplay;
 
-    public Bowl(MongoTemplate mongo, MessageChannel name, String team1Name, String team2Name) {
+    List<QuestionTags> tags;
+    public Bowl(MongoTemplate mongo, MessageChannel name, String team1Name, String team2Name, List<QuestionTags> tags) {
         this.mongo = mongo;
         this.name = name;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
+        this.tags = tags;
     }
 
     public MessageChannel getName() {
@@ -71,11 +75,22 @@ public class Bowl {
         startQuestion(channel);
     }
 
+    public boolean isInPlayerList(User user) {
+        return team1Members.containsKey(user) || team2members.containsKey(user);
+    }
+
+    public HashMap<User, Player> getTeam1Members() {
+        return team1Members;
+    }
+
+    public HashMap<User, Player> getTeam2members() {
+        return team2members;
+    }
 
     private boolean acceptable(String buzz) {
         LevenshteinCalculator levenshteinCalculator = new LevenshteinCalculator();
         for (String a : answers) {
-            if (levenshteinCalculator.getDifference("buzz",a) < 3) {
+            if (levenshteinCalculator.getDifference("buzz", a) <= 3) {
                 return true;
             }
         }
@@ -83,7 +98,7 @@ public class Bowl {
     }
 
     public void checkAnswer(String buzz, User player) {
-        if (answers.contains(buzz)) {
+        if (acceptable(buzz)) {
             name.sendMessage("correct").queue();
             name.sendMessage(answerDisplay).queue();
             sf.cancel(true);
@@ -91,7 +106,7 @@ public class Bowl {
 
             //calculate score to give
             int score = 10;
-            if (power) score +=5;
+            if (power) score += 5;
 
             //add score to player
             if (team1Members.containsKey(player)) {
@@ -101,6 +116,8 @@ public class Bowl {
                 team2members.get(player).addScore(10);
                 team2Score += score;
             }
+
+            startQuestion(name);
 
         } else name.sendMessage("Incorrect").queue();
 
@@ -114,7 +131,7 @@ public class Bowl {
     private void printClue(MessageChannel channel, boolean triggerPower) {
         //in the case that we are done with the question and no correct answers
         if (question.isEmpty()) {
-            channel.sendMessage("time " + answerDisplay).queue((response)->startQuestion(channel));
+            channel.sendMessage("time " + answerDisplay).queue((response) -> startQuestion(channel));
         }
 
         //we want to deactivate power after the (*), so we need a mechanism to tell the next callback to deactivate power
@@ -125,7 +142,8 @@ public class Bowl {
         sf = channel.sendMessage(question.remove()).queueAfter(5, TimeUnit.SECONDS, (response) -> printClue(channel, finalTriggerPower));
     }
 
-    private void loadQuestion(List<QuestionTags> tags) {
+
+    private void loadQuestion() {
         //load a question into the currentQuestion linked list, optional conditions like category and difficulty
         Query query = query(where("tags").all(tags));
         query.fields().include("id");
@@ -136,7 +154,7 @@ public class Bowl {
             return;
         }
 
-        Question q = mongo.findById(idList.get((int)(Math.random() * idList.size())).getId(), Question.class);
+        Question q = mongo.findById(idList.get((int) (Math.random() * idList.size())).getId(), Question.class);
 
         //perform question formatting into the queue
         question.addAll(List.of(q.getQuestion().split("(?<=\\. )|(?<=\\Q.”\\E)|(?<=\\(\\*\\))")));
@@ -154,11 +172,18 @@ public class Bowl {
 
         List<QuestionTags> tags = new ArrayList<>();
         tags.add(QuestionTags.HS);
-        loadQuestion(tags);
-        printClue(channel,false);
+        loadQuestion();
+        printClue(channel, false);
     }
 
     public void endMatch() {
+        //print out team score
+        name.sendMessage(team1Name + " : " + team1Score + "\n" + team2Name + " : " + team2Score).queue();
+        //print out individual scores
+        team1Members.forEach((i, j) -> name.sendMessage(i.getName() + " : " + j.getScore()).queue());
+        team2members.forEach((i, j) -> name.sendMessage(i.getName() + " : " + j.getScore()).queue());
+
+        sf.cancel(true);
     }
 
     public String displayTeams() {
