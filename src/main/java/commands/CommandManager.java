@@ -46,7 +46,7 @@ public class CommandManager extends ListenerAdapter {
         );
 
         commandData.add(Commands.slash("jointeam", "Join a team if a game is about to start")
-                .addOption(OptionType.STRING, "teamname", "name of team you want to join")
+                .addOption(OptionType.STRING, "teamname", "name of team you want to join",true)
         );
 
         commandData.add(Commands.slash("startgame", "Start the game (locks teams)"));

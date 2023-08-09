@@ -112,7 +112,10 @@ public class Bowl {
     ScheduledFuture<?> sf;
 
     private void printClue(MessageChannel channel, boolean triggerPower) {
-        if (question.isEmpty()) return;
+        //in the case that we are done with the question and no correct answers
+        if (question.isEmpty()) {
+            channel.sendMessage("time " + answerDisplay).queue((response)->startQuestion(channel));
+        }
 
         //we want to deactivate power after the (*), so we need a mechanism to tell the next callback to deactivate power
         if (triggerPower) power = false;
@@ -133,7 +136,7 @@ public class Bowl {
             return;
         }
 
-        Question q = mongo.findById(idList.get((int)(Math.random() * idList.size())), Question.class);
+        Question q = mongo.findById(idList.get((int)(Math.random() * idList.size())).getId(), Question.class);
 
         //perform question formatting into the queue
         question.addAll(List.of(q.getQuestion().split("(?<=\\. )|(?<=\\Q.”\\E)|(?<=\\(\\*\\))")));
@@ -141,8 +144,6 @@ public class Bowl {
         //load answers
         answerDisplay = q.getDisplayAnswers();
         answers = q.getAnswers();
-
-        //how to add to the database
     }
 
 
@@ -152,6 +153,7 @@ public class Bowl {
         power = true;
 
         List<QuestionTags> tags = new ArrayList<>();
+        tags.add(QuestionTags.HS);
         loadQuestion(tags);
         printClue(channel,false);
     }
