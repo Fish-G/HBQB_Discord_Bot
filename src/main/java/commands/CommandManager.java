@@ -9,7 +9,6 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
-import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import org.example.HBQB;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
@@ -65,6 +64,31 @@ public class CommandManager extends ListenerAdapter {
 
         commandData.add(Commands.slash("leaveteam", "leave your current team"));
 
+        commandData.add(Commands.slash("addquestion", "submit your own question")
+                .addOption(OptionType.STRING,"question","your question", true)
+                .addOption(OptionType.STRING, "answers", "your answers, comma seperated, these are the bold and underlined portion of the answer only. ie: a, b, c ",true)
+                .addOption(OptionType.STRING,"displayanswer", "the full answer to show after question is finished",true)
+                .addOption(OptionType.STRING, "tags", "add descriptor tags see /tags for a list. comma space seperated, ie: hs, trash",true)
+        );
+
+        commandData.add(Commands.slash("deletequestion", "delete a question from the database")
+                .addOption(OptionType.STRING,"uuid", "question id given on question submission to database",true)
+        );
+
+        commandData.add(Commands.slash("searchquestionbyuuid","Search the database for a question given uuid")
+                .addOption(OptionType.STRING,"uuid","uuid",true)
+        );
+
+        commandData.add(Commands.slash("searchquestionbyusersubmission", "search a questino by the user who submitted it")
+                .addOption(OptionType.USER,"user","user",true)
+        );
+
+        commandData.add(Commands.slash("searchquestionbytags", "search a questino by the user who submitted it")
+                .addOption(OptionType.STRING,"tags","tags comma space separated",true)
+        );
+
+        commandData.add(Commands.slash("tags", "list of descriptor tags for questions"));
+
         event.getGuild().updateCommands().addCommands(commandData).queue();
     }
 
@@ -79,7 +103,32 @@ public class CommandManager extends ListenerAdapter {
             case "scorecheck" -> displayScore(event);
             case "stopgame" -> stopGame(event);
             case "leaveteam" -> leaveTeam(event);
+            case "addquestion"  -> addQuestion(event);
+            case "tags" -> showTags(event);
+            case "deletequestion" -> deleteQuestion(event);
+            case "searchquestionbyuuid" -> searchQuestionByUUID(event);
+            case "searchquestionbyusersubmission" -> searchQuestionByUserSubmission(event);
         }
+    }
+
+    private void searchQuestionByUserSubmission(SlashCommandInteractionEvent event) {
+
+    }
+
+    private void searchQuestionByUUID(SlashCommandInteractionEvent event) {
+
+    }
+
+    private void deleteQuestion(SlashCommandInteractionEvent event) {
+
+    }
+
+    private void addQuestion(SlashCommandInteractionEvent event) {
+        // reply with uuid of the submitted question
+    }
+
+    private void showTags(SlashCommandInteractionEvent event) {
+        event.reply("hs, ms, college, science, philosophy, literature, math, trash, history, art, geography, miscellaneous, music").queue();
     }
 
     private void leaveTeam(SlashCommandInteractionEvent event) {
