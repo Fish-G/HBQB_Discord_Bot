@@ -4,7 +4,6 @@ import com.github.wslf.levenshteindistance.LevenshteinCalculator;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import org.example.Question;
-import org.springframework.core.metrics.StartupStep;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -29,6 +28,7 @@ public class Bowl {
     // current question
     Queue<String> question = new LinkedList<>();
 
+    private boolean started = false;
     private boolean power;
     //current possible answers
     List<String> answers = new ArrayList<>();
@@ -71,26 +71,30 @@ public class Bowl {
         team2members.put(player, new Player(player));
     }
 
-    public void startMatch(MessageChannel channel) {
-        startQuestion(channel);
-    }
-
     public boolean isInPlayerList(User user) {
         return team1Members.containsKey(user) || team2members.containsKey(user);
+    }
+
+    public boolean isStarted() {
+        return started;
     }
 
     public HashMap<User, Player> getTeam1Members() {
         return team1Members;
     }
 
-    public HashMap<User, Player> getTeam2members() {
+    public HashMap<User, Player> getTeam2Members() {
         return team2members;
+    }
+
+    public List<QuestionTags> getTags() {
+        return tags;
     }
 
     private boolean acceptable(String buzz) {
         LevenshteinCalculator levenshteinCalculator = new LevenshteinCalculator();
         for (String a : answers) {
-            if (levenshteinCalculator.getDifference("buzz", a) <= 3) {
+            if (levenshteinCalculator.getLevenshteinDistance(buzz,a,false) < 3) {
                 return true;
             }
         }
@@ -113,17 +117,20 @@ public class Bowl {
                 team1Members.get(player).addScore(score);
                 team1Score += score;
             } else {
-                team2members.get(player).addScore(10);
+                team2members.get(player).addScore(score);
                 team2Score += score;
             }
 
             startQuestion(name);
 
-        } else name.sendMessage("Incorrect").queue();
+        } else {
+            name.sendMessage("Incorrect").queue();
+            if (team1Members.containsKey(player)) {
+                team1Members.get(player).addScore(-5);
+            } else team2members.get(player).addScore(-5);
+        }
 
-        if (team1Members.containsKey(player)) {
-            team1Members.get(player).addScore(-5);
-        } else team2members.get(player).addScore(-5);
+
     }
 
     ScheduledFuture<?> sf;
@@ -131,7 +138,8 @@ public class Bowl {
     private void printClue(MessageChannel channel, boolean triggerPower) {
         //in the case that we are done with the question and no correct answers
         if (question.isEmpty()) {
-            channel.sendMessage("time " + answerDisplay).queue((response) -> startQuestion(channel));
+            sf = channel.sendMessage("time " + answerDisplay).queueAfter(5,TimeUnit.SECONDS,(response) -> startQuestion(channel));
+            return;
         }
 
         //we want to deactivate power after the (*), so we need a mechanism to tell the next callback to deactivate power
@@ -149,14 +157,21 @@ public class Bowl {
         query.fields().include("id");
         List<Question> idList = mongo.find(query, Question.class);
 
+
         if (idList.isEmpty()) {
-            name.sendMessage("no question found").queue();
-            return;
+            name.sendMessage("no question found, removing all tags and adding hs tag! please readd tags with /addtags and check your combination!").queue();
+            tags.clear();
+            tags.add(QuestionTags.HS);
+
+            query = query(where("tags").all(tags));
+            query.fields().include("id");
+            idList = mongo.find(query, Question.class);
         }
 
         Question q = mongo.findById(idList.get((int) (Math.random() * idList.size())).getId(), Question.class);
 
         //perform question formatting into the queue
+        assert q != null;
         question.addAll(List.of(q.getQuestion().split("(?<=\\. )|(?<=\\Q.”\\E)|(?<=\\(\\*\\))")));
 
         //load answers
@@ -165,13 +180,12 @@ public class Bowl {
     }
 
 
-    private void startQuestion(MessageChannel channel) {
+    public void startQuestion(MessageChannel channel) {
         //queue up next question and answer
         //load question from database, split into sentences
+        started = true;
         power = true;
 
-        List<QuestionTags> tags = new ArrayList<>();
-        tags.add(QuestionTags.HS);
         loadQuestion();
         printClue(channel, false);
     }
